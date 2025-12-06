@@ -1,0 +1,138 @@
+variant: fcos
+version: 1.6.0
+
+grub:
+  users:
+    - name: root
+      password_hash: grub.pbkdf2.sha512.10000.8B26E05E12E1F1B91B3C19262B7E59EB19A3EF1030B2515422387FB05D1E0CF236AF3D26413AE68EE9A80D66DFD2E511F490B98657DA4716C19CDD42E79662F8.7A629E5CFFDB0F35CF722C13A11E33F7FF26125E00AA04CDC22626AEACFB02DA3172EF2C53C070F11861DA58364C2D1321FDEEE20E65865257D88EA7C477926D
+
+storage:
+  disks:
+    - device: /dev/disk/by-id/coreos-boot-disk
+      partitions:
+        - label: root
+          number: 4
+          size_mib: 0
+          resize: true
+  #luks:
+  #  - name: root
+  #    device: /dev/disk/by-partlabel/root
+  #    clevis:
+  #      tpm2: true
+  #    wipe_volume: true
+  filesystems:
+    - device: /dev/mapper/root
+      format: xfs
+      wipe_filesystem: true
+      label: root
+
+  files:
+    # Change the hostname
+    - path: /etc/hostname
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: qah
+    # Change the keyboard layout
+    - path: /etc/vconsole.conf
+      mode: 0644
+      contents:
+        inline: KEYMAP=se
+    # Enable ZRAM
+    - path: /etc/systemd/zram-generator.conf
+      mode: 0644
+      contents:
+        inline: |
+          # This config file enables a /dev/zram0 device with the default settings
+          [zram0]
+    # Configure mullvad
+    - path: /etc/wireguard/se-sto-wg-001.conf
+      mode: 0600
+      contents:
+        local: files/mullvad/se-sto-wg-001.conf
+    - path: /etc/wireguard/se-sto-wg-002.conf
+      mode: 0600
+      contents:
+        local: files/mullvad/se-sto-wg-002.conf
+    - path: /etc/wireguard/se-sto-wg-003.conf
+      mode: 0600
+      contents:
+        local: files/mullvad/se-sto-wg-003.conf
+    - path: /var/home/qah/.config/environment.d/99-gtk-theme.conf
+      mode: 0644
+      append:
+        - inline: |
+            GTK_THEME=Adwaita:dark
+    # Configure foot
+    - path: /var/home/qah/.config/foot/foot.ini
+      mode: 0644
+      contents:
+        local: files/foot/foot.ini
+    # Configure sway
+    - path: /var/home/qah/.config/sway/config
+      mode: 0644
+      contents:
+        local: files/sway/config
+  trees: # Permissions sätts till 644.
+    - local: files/sway/config.d/
+      path: /etc/sway/config.d/
+
+passwd:
+  users:
+    - name: qah
+      groups:
+        - wheel
+      password_hash: $y$j9T$syR4176uLMH.PihlZ.up7.$6xfNyG4qA2OiHKXU2MwY9aJfw86Hxy9.x9gseHyfuZA
+
+systemd:
+  units:
+    - name: rpm-ostree-firstboot-setup.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=First-boot setup (wifi, Docker CE, sway, libvirt)
+        Wants=network-online.target
+        After=network-online.target
+        Before=zincati.service
+        ConditionPathExists=!/var/lib/%N.stamp
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+
+        # 1) Add Docker CE repo
+        ExecStart=/usr/bin/curl --fail --silent --show-error \
+          --output-dir "/etc/yum.repos.d" \
+          --remote-name https://download.docker.com/linux/fedora/docker-ce.repo
+
+        # 2) Remove moby stack
+        ExecStart=/usr/bin/rpm-ostree override remove \
+          moby-engine containerd runc docker-cli
+
+        # 3) Install everything we want layered
+        ExecStart=/usr/bin/rpm-ostree install -y --allow-inactive \
+          docker-ce \
+          NetworkManager-wifi mt7xxx-firmware \
+          sway foot wofi brightnessctl grimshot pulseaudio-utils libnotify lxqt-policykit polkit swaylock \
+          libvirt-daemon-kvm libvirt-daemon-config-network qemu-kvm \
+          virt-install virt-manager virt-viewer virt-top \
+          flatpak \
+          libguestfs-tools python3-libguestfs spice-gtk
+
+        # 3) Mark as done and reboot once
+        ExecStart=/usr/bin/touch /var/lib/%N.stamp
+        ExecStart=/usr/bin/systemctl --no-block reboot
+
+        [Install]
+        WantedBy=multi-user.target
+
+
+
+
+    
+
+
+
+
+
+
