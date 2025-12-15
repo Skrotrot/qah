@@ -80,7 +80,7 @@ storage:
     - path: /var/home/qah/.config/sway/config
       mode: 0644
       contents:
-        local: files/sway/config
+        local: files/sway/sway.conf
   trees: # Permissions sätts till 644.
     - local: files/sway/config.d/
       path: /etc/sway/config.d/

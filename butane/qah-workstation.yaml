@@ -7,25 +7,6 @@ grub:
       password_hash: grub.pbkdf2.sha512.10000.8B26E05E12E1F1B91B3C19262B7E59EB19A3EF1030B2515422387FB05D1E0CF236AF3D26413AE68EE9A80D66DFD2E511F490B98657DA4716C19CDD42E79662F8.7A629E5CFFDB0F35CF722C13A11E33F7FF26125E00AA04CDC22626AEACFB02DA3172EF2C53C070F11861DA58364C2D1321FDEEE20E65865257D88EA7C477926D
 
 storage:
-  #disks:
-  #  - device: /dev/disk/by-id/coreos-boot-disk
-  #    partitions:
-  #      - label: root
-  #        number: 4
-  #        size_mib: 0
-  #        resize: true
-  #luks:
-  #  - name: root
-  #    device: /dev/disk/by-partlabel/root
-  #    clevis:
-  #      tpm2: true
-  #    wipe_volume: true
-  #filesystems:
-  #  - device: /dev/mapper/root
-  #    format: xfs
-  #    wipe_filesystem: true
-  #    label: root
-
   files:
     # Change the hostname
     - path: /etc/hostname
@@ -45,12 +26,6 @@ storage:
         inline: |
           # This config file enables a /dev/zram0 device with the default settings
           [zram0]
-    # Remove noveou blacklist
-    - path: /etc/modprobe.d/blacklist-nouveau.conf
-      mode: 0644
-      overwrite: true
-      contents:
-        inline: '# See https://bugzilla.redhat.com/show_bug.cgi?id=1700056'
     # Configure mullvad
     - path: /etc/wireguard/se-sto-wg-001.conf
       mode: 0600
@@ -76,14 +51,20 @@ storage:
       mode: 0644
       contents:
         local: files/foot/foot.ini
-    # Configure sway
-    - path: /var/home/qah/.config/sway/config
+    # Configure i3
+    - path: /var/home/qah/.config/i3/config
       mode: 0644
       contents:
-        local: files/sway/config
+        local: files/i3/i3.conf
+    - path: /var/home/qah/.xinitrc
+      mode: 0755
+      contents:
+        inline: |
+          exec dbus-run-session i3
+
   trees: # Permissions sätts till 644.
-    - local: files/sway/config.d/
-      path: /etc/sway/config.d/
+    - local: files/i3/config.d/
+      path: /etc/i3/config.d/
 
 passwd:
   users:
@@ -98,7 +79,7 @@ systemd:
       enabled: true
       contents: |
         [Unit]
-        Description=First-boot setup (wifi, Docker CE, sway, libvirt)
+        Description=First-boot setup (wifi, Docker CE, RPM Fusion, NVIDIA 470xx, i3, libvirt)
         Wants=network-online.target
         After=network-online.target
         Before=zincati.service
@@ -107,32 +88,65 @@ systemd:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
+        TimeoutStartSec=0
 
-        # 1) Add Docker CE repo
-        ExecStart=/usr/bin/curl --fail --silent --show-error \
-          --output-dir "/etc/yum.repos.d" \
-          --remote-name https://download.docker.com/linux/fedora/docker-ce.repo
+        ExecStart=/usr/bin/bash -euxo pipefail -c '
+          PHASE1="/var/lib/%N.phase1"
 
-        # 2) Remove moby stack
-        ExecStart=/usr/bin/rpm-ostree override remove \
-          moby-engine containerd runc docker-cli
+          if [ ! -e "${PHASE1}" ]; then
+            echo "== Phase 1/2: add Docker CE repo, remove moby, add RPM Fusion (versioned RPMs) =="
 
-        # 3) Install everything we want layered
-        ExecStart=/usr/bin/rpm-ostree install -y --allow-inactive \
-          docker-ce \
-          NetworkManager-wifi mt7xxx-firmware \
-          sway foot wofi brightnessctl grimshot pulseaudio-utils libnotify lxqt-policykit polkit swaylock \
-          libvirt-daemon-kvm libvirt-daemon-config-network qemu-kvm \
-          virt-install virt-manager virt-viewer virt-top \
-          flatpak p11-kit-server \
-          libguestfs-tools python3-libguestfs spice-gtk
+            /usr/bin/curl --fail --silent --show-error \
+              --output-dir "/etc/yum.repos.d" \
+              --remote-name https://download.docker.com/linux/fedora/docker-ce.repo
 
-        # 5) Mark as done and reboot once
-        ExecStart=/usr/bin/touch /var/lib/%N.stamp
-        ExecStart=/usr/bin/systemctl --no-block reboot
+            /usr/bin/rpm-ostree override remove moby-engine containerd runc docker-cli
+
+            FEDORA="$(/usr/bin/rpm -E %%fedora)"
+            /usr/bin/rpm-ostree install -y --allow-inactive \
+              "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA}.noarch.rpm" \
+              "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA}.noarch.rpm"
+
+            /usr/bin/touch "${PHASE1}"
+            /usr/bin/systemctl --no-block reboot
+            exit 0
+          fi
+
+          echo "== Phase 2/2: swap RPM Fusion release pkgs, layer i3+Xorg+NVIDIA470xx stack, set kargs =="
+
+          /usr/bin/rpm-ostree update \
+            --uninstall rpmfusion-free-release \
+            --uninstall rpmfusion-nonfree-release \
+            --install rpmfusion-free-release \
+            --install rpmfusion-nonfree-release
+
+          /usr/bin/rpm-ostree install -y --allow-inactive \
+            docker-ce \
+            NetworkManager-wifi mt7xxx-firmware \
+            xorg-x11-server-Xorg xorg-x11-xinit xorg-x11-xauth xrandr \
+            xorg-x11-drv-libinput \
+            i3 i3status i3lock rofi alacritty \
+            maim slop xdotool \
+            brightnessctl pulseaudio-utils libnotify lxqt-policykit polkit \
+            kernel-devel gcc make elfutils-libelf-devel \
+            libvirt-daemon-kvm libvirt-daemon-config-network qemu-kvm \
+            virt-install virt-manager virt-viewer virt-top \
+            flatpak p11-kit-server \
+            libguestfs-tools python3-libguestfs spice-gtk \
+            akmod-nvidia-470xx xorg-x11-drv-nvidia-470xx
+
+          /usr/bin/rpm-ostree kargs \
+            --append=rd.driver.blacklist=nouveau,nova_core \
+            --append=modprobe.blacklist=nouveau,nova_core \
+            --append=nvidia-drm.modeset=1
+
+          /usr/bin/touch /var/lib/%N.stamp
+          /usr/bin/systemctl --no-block reboot
+        '
 
         [Install]
         WantedBy=multi-user.target
+
 
 
 

@@ -25,3 +25,4 @@ Sound/brightness notify
 swaylock background
 swaybar mullvad !
 dmenu
+multiple monitors
