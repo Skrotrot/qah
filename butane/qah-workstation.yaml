@@ -26,6 +26,11 @@ storage:
         inline: |
           # This config file enables a /dev/zram0 device with the default settings
           [zram0]
+    # Firstboot sh file
+    - path: /usr/local/bin/firstboot-setup.sh
+      mode: 0755
+      contents:
+        local: files/workstation/firstboot-setup.sh
     # Configure mullvad
     - path: /etc/wireguard/se-sto-wg-001.conf
       mode: 0600
@@ -89,60 +94,7 @@ systemd:
         Type=oneshot
         RemainAfterExit=yes
         TimeoutStartSec=0
-
-        ExecStart=/usr/bin/bash -euxo pipefail -c '
-          PHASE1="/var/lib/%N.phase1"
-
-          if [ ! -e "${PHASE1}" ]; then
-            echo "== Phase 1/2: add Docker CE repo, remove moby, add RPM Fusion (versioned RPMs) =="
-
-            /usr/bin/curl --fail --silent --show-error \
-              --output-dir "/etc/yum.repos.d" \
-              --remote-name https://download.docker.com/linux/fedora/docker-ce.repo
-
-            /usr/bin/rpm-ostree override remove moby-engine containerd runc docker-cli
-
-            FEDORA="$(/usr/bin/rpm -E %%fedora)"
-            /usr/bin/rpm-ostree install -y --allow-inactive \
-              "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA}.noarch.rpm" \
-              "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA}.noarch.rpm"
-
-            /usr/bin/touch "${PHASE1}"
-            /usr/bin/systemctl --no-block reboot
-            exit 0
-          fi
-
-          echo "== Phase 2/2: swap RPM Fusion release pkgs, layer i3+Xorg+NVIDIA470xx stack, set kargs =="
-
-          /usr/bin/rpm-ostree update \
-            --uninstall rpmfusion-free-release \
-            --uninstall rpmfusion-nonfree-release \
-            --install rpmfusion-free-release \
-            --install rpmfusion-nonfree-release
-
-          /usr/bin/rpm-ostree install -y --allow-inactive \
-            docker-ce \
-            NetworkManager-wifi mt7xxx-firmware \
-            xorg-x11-server-Xorg xorg-x11-xinit xorg-x11-xauth xrandr \
-            xorg-x11-drv-libinput \
-            i3 i3status i3lock rofi alacritty \
-            maim slop xdotool \
-            brightnessctl pulseaudio-utils libnotify lxqt-policykit polkit \
-            kernel-devel gcc make elfutils-libelf-devel \
-            libvirt-daemon-kvm libvirt-daemon-config-network qemu-kvm \
-            virt-install virt-manager virt-viewer virt-top \
-            flatpak p11-kit-server \
-            libguestfs-tools python3-libguestfs spice-gtk \
-            akmod-nvidia-470xx xorg-x11-drv-nvidia-470xx
-
-          /usr/bin/rpm-ostree kargs \
-            --append=rd.driver.blacklist=nouveau,nova_core \
-            --append=modprobe.blacklist=nouveau,nova_core \
-            --append=nvidia-drm.modeset=1
-
-          /usr/bin/touch /var/lib/%N.stamp
-          /usr/bin/systemctl --no-block reboot
-        '
+        ExecStart=/usr/local/bin/firstboot-setup.sh %N
 
         [Install]
         WantedBy=multi-user.target

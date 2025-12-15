@@ -1,4 +1,4 @@
-DEVICE='--dest-device /dev/nvme0n1'
+DEVICE='--dest-device /dev/sda'
 IGNITION='--dest-ignition qah.ign'
 docker run --security-opt label=disable --pull=always --rm -v .:/data -w /data \
     quay.io/coreos/coreos-installer:release iso customize $DEVICE $IGNITION \
