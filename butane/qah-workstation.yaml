@@ -7,24 +7,24 @@ grub:
       password_hash: grub.pbkdf2.sha512.10000.8B26E05E12E1F1B91B3C19262B7E59EB19A3EF1030B2515422387FB05D1E0CF236AF3D26413AE68EE9A80D66DFD2E511F490B98657DA4716C19CDD42E79662F8.7A629E5CFFDB0F35CF722C13A11E33F7FF26125E00AA04CDC22626AEACFB02DA3172EF2C53C070F11861DA58364C2D1321FDEEE20E65865257D88EA7C477926D
 
 storage:
-  disks:
-    - device: /dev/disk/by-id/coreos-boot-disk
-      partitions:
-        - label: root
-          number: 4
-          size_mib: 0
-          resize: true
-  luks:
-    - name: root
-      device: /dev/disk/by-partlabel/root
-      clevis:
-        tpm2: true
-      wipe_volume: true
-  filesystems:
-    - device: /dev/mapper/root
-      format: xfs
-      wipe_filesystem: true
-      label: root
+  #disks:
+  #  - device: /dev/disk/by-id/coreos-boot-disk
+  #    partitions:
+  #      - label: root
+  #        number: 4
+  #        size_mib: 0
+  #        resize: true
+  #luks:
+  #  - name: root
+  #    device: /dev/disk/by-partlabel/root
+  #    clevis:
+  #      tpm2: true
+  #    wipe_volume: true
+  #filesystems:
+  #  - device: /dev/mapper/root
+  #    format: xfs
+  #    wipe_filesystem: true
+  #    label: root
 
   files:
     # Change the hostname
@@ -69,8 +69,8 @@ storage:
       mode: 0644
       append:
         - inline: |
-            alias mvup='wg-quick up /etc/wireguard/se-sto-wg-002.conf'
-            alias mvdown='wg-quick down /etc/wireguard/se-sto-wg002.conf'
+            alias mvup='wg-quick up /etc/wireguard/se-sto-wg-001.conf'
+            alias mvdown='wg-quick down /etc/wireguard/se-sto-wg001.conf'
     # Configure foot
     - path: /var/home/qah/.config/foot/foot.ini
       mode: 0644
