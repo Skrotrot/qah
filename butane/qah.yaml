@@ -70,7 +70,7 @@ storage:
       append:
         - inline: |
             alias mvup='wg-quick up /etc/wireguard/se-sto-wg-002.conf'
-            alias mvdown='wg-quick down /etc/wireguard/se-sto-wg002.conf'
+            alias mvdown='wg-quick down /etc/wireguard/se-sto-wg-002.conf'
     # Configure foot
     - path: /var/home/qah/.config/foot/foot.ini
       mode: 0644

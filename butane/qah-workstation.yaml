@@ -26,11 +26,12 @@ storage:
         inline: |
           # This config file enables a /dev/zram0 device with the default settings
           [zram0]
-    # Firstboot sh file
-    - path: /usr/local/bin/firstboot-setup.sh
-      mode: 0755
+    # Remove noveou blacklist
+    - path: /etc/modprobe.d/blacklist-nouveau.conf
+      mode: 0644
+      overwrite: true
       contents:
-        local: files/workstation/firstboot-setup.sh
+        inline: '# See https://bugzilla.redhat.com/show_bug.cgi?id=1700056'
     # Configure mullvad
     - path: /etc/wireguard/se-sto-wg-001.conf
       mode: 0600
@@ -49,9 +50,9 @@ storage:
       mode: 0644
       append:
         - inline: |
-            alias mvup='wg-quick up /etc/wireguard/se-sto-wg-001.conf'
-            alias mvdown='wg-quick down /etc/wireguard/se-sto-wg001.conf'
-    # Configure foot
+            alias mvup='sudo wg-quick up /etc/wireguard/se-sto-wg-001.conf'
+            alias mvdown='sudo wg-quick down /etc/wireguard/se-sto-wg-001.conf'
+    # Configure alacritty
     - path: /var/home/qah/.config/alacritty/alacritty.toml
       mode: 0644
       contents:
@@ -65,8 +66,7 @@ storage:
       mode: 0755
       contents:
         inline: |
-          exec dbus-run-session i3
-
+          exec i3
   trees: # Permissions sätts till 644.
     - local: files/i3/config.d/
       path: /etc/i3/config.d/
@@ -84,7 +84,7 @@ systemd:
       enabled: true
       contents: |
         [Unit]
-        Description=First-boot setup (wifi, Docker CE, RPM Fusion, NVIDIA 470xx, i3, libvirt)
+        Description=First-boot setup (wifi, Docker CE, i3, libvirt)
         Wants=network-online.target
         After=network-online.target
         Before=zincati.service
@@ -93,11 +93,37 @@ systemd:
         [Service]
         Type=oneshot
         RemainAfterExit=yes
-        TimeoutStartSec=0
-        ExecStart=/usr/local/bin/firstboot-setup.sh %N
+
+        # 1) Add Docker CE repo
+        ExecStart=/usr/bin/curl --fail --silent --show-error \
+          --output-dir "/etc/yum.repos.d" \
+          --remote-name https://download.docker.com/linux/fedora/docker-ce.repo
+
+        # 2) Remove moby stack
+        ExecStart=/usr/bin/rpm-ostree override remove \
+          moby-engine containerd runc docker-cli
+
+        # 3) Install everything we want layered
+        ExecStart=/usr/bin/rpm-ostree install -y --allow-inactive \
+          docker-ce \
+          NetworkManager-wifi mt7xxx-firmware \
+          xorg-x11-server-Xorg xorg-x11-xinit xorg-x11-xauth xrandr xorg-x11-drv-libinput \
+          i3 i3status i3lock rofi alacritty \
+          maim slop xdotool \
+          brightnessctl pulseaudio-utils libnotify lxqt-policykit polkit \
+          libvirt-daemon-kvm libvirt-daemon-config-network qemu-kvm \
+          virt-install virt-manager virt-viewer virt-top \
+          flatpak p11-kit-server \
+          libguestfs-tools python3-libguestfs spice-gtk \
+
+        # 5) Mark as done and reboot once
+        ExecStart=/usr/bin/touch /var/lib/%N.stamp
+        ExecStart=/usr/bin/systemctl --no-block reboot
 
         [Install]
         WantedBy=multi-user.target
+
+
 
 
 
