@@ -47,10 +47,10 @@ storage:
             alias mvup='wg-quick up /etc/wireguard/se-sto-wg-001.conf'
             alias mvdown='wg-quick down /etc/wireguard/se-sto-wg001.conf'
     # Configure foot
-    - path: /var/home/qah/.config/foot/foot.ini
+    - path: /var/home/qah/.config/alacritty/alacritty.toml
       mode: 0644
       contents:
-        local: files/foot/foot.ini
+        local: files/alacritty/alacritty.toml
     # Configure i3
     - path: /var/home/qah/.config/i3/config
       mode: 0644
